@@ -1,4 +1,4 @@
-// js/ui.js
+// js/ui.js — Agro Pro (UI helpers)
 const toastEl = document.getElementById("toast");
 const loadingEl = document.getElementById("loading");
 
@@ -13,8 +13,8 @@ export function toast(msg, ms = 2600){
 
   // replay animation
   toastEl.style.animation = "none";
-  // eslint-disable-next-line no-unused-expressions
-  toastEl.offsetHeight; // reflow
+  // reflow
+  toastEl.offsetHeight;
   toastEl.style.animation = "";
 
   toastTimer = setTimeout(() => {
@@ -39,4 +39,33 @@ export function setActiveMenuRoute(path){
   document.querySelectorAll(".menu a[data-route]").forEach(a => {
     a.classList.toggle("active", a.dataset.route === path);
   });
+}
+
+// Escape HTML
+export function h(s=""){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+export function num(v, d=2){
+  const n = Number(v);
+  if(Number.isNaN(n)) return (0).toFixed(d);
+  return n.toFixed(d);
+}
+
+export function fmtBRL(v){
+  const n = Number(v||0);
+  try{
+    return new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL" }).format(n);
+  }catch{
+    return "R$ " + num(n, 2).replace(".", ",");
+  }
+}
+
+export async function confirmDialog(msg){
+  return window.confirm(msg);
 }
