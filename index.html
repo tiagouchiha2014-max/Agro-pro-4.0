@@ -75,10 +75,28 @@
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <!-- Supabase (CDN) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <!-- App scripts -->
+  <!-- App scripts (LOCAL STORAGE MODE) -->
   <script type="module" src="./js/app.js"></script>
+
+  <!-- Debug opcional: transforma "página branca" em erro visível -->
+  <script>
+    window.addEventListener("error", (e) => {
+      const pre = document.createElement("pre");
+      pre.style.cssText = "white-space:pre-wrap;padding:16px;color:#fff;background:#111;position:fixed;inset:0;overflow:auto;z-index:99999;";
+      pre.textContent =
+        "ERRO:\n" + (e.message || e.error) + "\n\n" +
+        (e.filename ? ("Arquivo: " + e.filename + "\nLinha: " + e.lineno + "\n") : "") +
+        "\nDica: confira imports e nomes de arquivos/pastas (maiúsculo/minúsculo).";
+      document.body.appendChild(pre);
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      const pre = document.createElement("pre");
+      pre.style.cssText = "white-space:pre-wrap;padding:16px;color:#fff;background:#111;position:fixed;inset:0;overflow:auto;z-index:99999;";
+      pre.textContent =
+        "PROMISE ERRO:\n" + (e.reason?.message || e.reason) +
+        "\n\nDica: erro em async/await (db/storage).";
+      document.body.appendChild(pre);
+    });
+  </script>
 </body>
 </html>
