@@ -1,4 +1,3 @@
-// js/ui.js — Agro Pro (UI helpers)
 const toastEl = document.getElementById("toast");
 const loadingEl = document.getElementById("loading");
 
@@ -11,15 +10,11 @@ export function toast(msg, ms = 2600){
   toastEl.hidden = false;
   toastEl.textContent = msg;
 
-  // replay animation
   toastEl.style.animation = "none";
-  // reflow
   toastEl.offsetHeight;
   toastEl.style.animation = "";
 
-  toastTimer = setTimeout(() => {
-    toastEl.hidden = true;
-  }, ms);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
 }
 
 export const loading = {
@@ -41,14 +36,10 @@ export function setActiveMenuRoute(path){
   });
 }
 
-// Escape HTML
 export function h(s=""){
   return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
 export function num(v, d=2){
@@ -62,10 +53,6 @@ export function fmtBRL(v){
   try{
     return new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL" }).format(n);
   }catch{
-    return "R$ " + num(n, 2).replace(".", ",");
+    return "R$ " + num(n,2).replace(".", ",");
   }
-}
-
-export async function confirmDialog(msg){
-  return window.confirm(msg);
 }
