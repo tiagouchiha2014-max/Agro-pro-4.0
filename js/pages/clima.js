@@ -1,9 +1,13 @@
-// js/pages/clima.js
-export async function pageClima({ pageHeader, pageBody, state, sb, toast, loading }) {
+// js/pages/clima.js (LOCAL STORAGE)
+import { h, num } from "../ui.js";
+
+export async function pageClima({ pageHeader, pageBody, state, db, toast, loading }) {
   pageHeader.innerHTML = `
     <div>
       <div style="font-weight:800; font-size:18px;">Clima • Chuvas</div>
-      <div style="color:var(--muted); font-size:13px;">Registre chuva por talhão (mm) e acompanhe o acumulado na safra.</div>
+      <div style="color:var(--muted); font-size:13px;">
+        Registre chuva por talhão (mm) e acompanhe o acumulado na safra.
+      </div>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
       <button class="btn" id="btnAddChuva" type="button">+ Registrar Chuva</button>
@@ -38,16 +42,12 @@ export async function pageClima({ pageHeader, pageBody, state, sb, toast, loadin
 
   async function loadData(){
     if(!state.safraId || !state.fazendaId) return toast("Selecione safra e fazenda.");
+
     loading.show("Carregando chuvas...");
 
     const [talhoesRes, chuvasRes] = await Promise.all([
-      sb.from("talhoes").select("id,nome").eq("fazenda_id", state.fazendaId).order("nome"),
-      sb.from("chuvas_registros")
-        .select("id,data,mm,fonte,talhao_id")
-        .eq("safra_id", state.safraId)
-        .eq("fazenda_id", state.fazendaId)
-        .order("data", { ascending:false })
-        .limit(200)
+      db.listTalhoes({ fazendaId: state.fazendaId }),
+      db.listChuvas({ safraId: state.safraId, fazendaId: state.fazendaId, limit: 200 })
     ]);
 
     loading.hide();
@@ -62,9 +62,9 @@ export async function pageClima({ pageHeader, pageBody, state, sb, toast, loadin
     tb.innerHTML = (chuvasRes.data||[]).map(r => `
       <tr>
         <td>${fmtDate(r.data)}</td>
-        <td>${escapeHtml(mapTal.get(r.talhao_id) || "—")}</td>
-        <td>${Number(r.mm||0).toFixed(2)}</td>
-        <td>${escapeHtml(r.fonte || "manual")}</td>
+        <td>${h(mapTal.get(r.talhao_id) || "—")}</td>
+        <td>${num(r.mm, 2)}</td>
+        <td>${h(r.fonte || "manual")}</td>
       </tr>
     `).join("");
 
@@ -76,32 +76,38 @@ export async function pageClima({ pageHeader, pageBody, state, sb, toast, loadin
 
     const tbA = pageBody.querySelector("#tbAcum tbody");
     tbA.innerHTML = talhoes.map(t => `
-      <tr><td>${escapeHtml(t.nome)}</td><td>${(acum.get(t.id)||0).toFixed(2)}</td></tr>
+      <tr><td>${h(t.nome)}</td><td>${num(acum.get(t.id)||0, 2)}</td></tr>
     `).join("");
   }
 
   pageHeader.querySelector("#btnAddChuva").addEventListener("click", async () => {
     if(!state.safraId || !state.fazendaId) return toast("Selecione safra e fazenda.");
-    const { data: talhoes, error: eTal } = await sb.from("talhoes").select("id,nome").eq("fazenda_id", state.fazendaId).order("nome");
-    if(eTal) return toast("Erro talhões: " + eTal.message);
-    if(!talhoes?.length) return toast("Cadastre talhões primeiro.");
 
-    const talhaoNome = prompt("Talhão (digite exatamente o nome):\n" + talhoes.map(t => t.nome).join("\n"));
+    const talhoesRes = await db.listTalhoes({ fazendaId: state.fazendaId });
+    if(talhoesRes.error) return toast("Erro talhões: " + talhoesRes.error.message);
+
+    const talhoes = talhoesRes.data || [];
+    if(!talhoes.length) return toast("Cadastre talhões primeiro (em Propriedades).");
+
+    const talhaoNome = prompt(
+      "Talhão (digite exatamente o nome):\n" + talhoes.map(t => t.nome).join("\n")
+    );
     if(!talhaoNome) return;
 
-    const talhao = talhoes.find(t => t.nome.toLowerCase() === talhaoNome.toLowerCase());
+    const talhao = talhoes.find(t => String(t.nome).toLowerCase() === talhaoNome.toLowerCase());
     if(!talhao) return toast("Talhão não encontrado.");
 
     const data = prompt("Data (AAAA-MM-DD):", new Date().toISOString().slice(0,10));
-    if(!data) return;
+    if(!data) return toast("Data é obrigatória.");
 
     const mm = Number(prompt("Chuva (mm):", "0") || "0");
+
     loading.show("Salvando...");
 
-    const { error } = await sb.from("chuvas_registros").insert({
-      fazenda_id: state.fazendaId,
-      safra_id: state.safraId,
-      talhao_id: talhao.id,
+    const { error } = await db.addChuva({
+      safraId: state.safraId,
+      fazendaId: state.fazendaId,
+      talhaoId: talhao.id,
       data,
       mm,
       fonte: "manual"
@@ -122,9 +128,4 @@ export async function pageClima({ pageHeader, pageBody, state, sb, toast, loadin
 function fmtDate(d){
   if(!d) return "—";
   return String(d);
-}
-function escapeHtml(s=""){
-  return String(s)
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
