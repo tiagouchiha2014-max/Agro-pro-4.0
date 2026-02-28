@@ -1,9 +1,13 @@
-// js/pages/relatorios.js
-export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, loading }) {
+// js/pages/relatorios.js (LOCAL STORAGE)
+import { h, num, fmtBRL } from "../ui.js";
+
+export async function pageRelatorios({ pageHeader, pageBody, state, db, toast, loading }) {
   pageHeader.innerHTML = `
     <div>
       <div style="font-weight:800; font-size:18px;">Relatório Conectado</div>
-      <div style="color:var(--muted); font-size:13px;">Custos cumulativos por talhão + chuva + toneladas + receita estimada.</div>
+      <div style="color:var(--muted); font-size:13px;">
+        Custos cumulativos por talhão + chuva + toneladas + receita estimada.
+      </div>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
       <button class="btn" id="btnReload" type="button">Recarregar</button>
@@ -12,6 +16,7 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
 
   pageBody.innerHTML = `
     <div class="card" id="kpis"></div>
+
     <div style="margin-top: var(--space-3);" class="card">
       <div style="font-weight:800; margin-bottom:10px;">Por Talhão (Safra + Fazenda)</div>
       <div style="overflow:auto;">
@@ -33,7 +38,8 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
       </div>
       <hr class="sep" />
       <div style="color:var(--muted); font-size:12px;">
-        * Receita estimada usa o preço configurado em <b>config_precos_graos</b> por cultura.
+        * Nesta fase (storage), Ton/Custos/Preços ainda são placeholders.
+        Quando você implementar Estoque/Aplicações/Colheita/Financeiro, isso vira automático.
       </div>
     </div>
   `;
@@ -42,12 +48,11 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
     if(!state.safraId || !state.fazendaId) return toast("Selecione safra e fazenda.");
 
     loading.show("Carregando relatório...");
-    const { data, error } = await sb
-      .from("v_relatorio_talhao_safra")
-      .select("*")
-      .eq("safra_id", state.safraId)
-      .eq("fazenda_id", state.fazendaId)
-      .order("talhao_nome", { ascending:true });
+
+    const { data, error } = await db.getRelatorioTalhoes({
+      safraId: state.safraId,
+      fazendaId: state.fazendaId
+    });
 
     loading.hide();
 
@@ -59,22 +64,30 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
     let totalCusto = 0, totalHa = 0, totalChuva = 0, totalTon = 0, totalReceitaEst = 0;
 
     tbody.innerHTML = rows.map(r => {
-      totalCusto += Number(r.custo_total || 0);
-      totalHa += Number(r.area_ha || 0);
-      totalChuva += Number(r.chuva_mm_safra || 0);
-      totalTon += Number(r.toneladas || 0);
-      totalReceitaEst += Number(r.receita_estimada || 0);
+      const area = Number(r.area_ha || 0);
+      const chuva = Number(r.chuva_mm_safra || 0);
+      const ton = Number(r.toneladas || 0);
+      const custo = Number(r.custo_total || 0);
+      const custoHa = Number(r.custo_por_ha || 0);
+      const precoTon = Number(r.preco_cfg_por_ton || 0);
+      const receita = Number(r.receita_estimada || 0);
+
+      totalCusto += custo;
+      totalHa += area;
+      totalChuva += chuva;
+      totalTon += ton;
+      totalReceitaEst += receita;
 
       return `
         <tr>
-          <td>${escapeHtml(r.talhao_nome || "—")}</td>
-          <td>${num(r.area_ha,2)}</td>
-          <td>${num(r.chuva_mm_safra,2)}</td>
-          <td>${num(r.toneladas,3)}</td>
-          <td>R$ ${num(r.custo_total,2)}</td>
-          <td>R$ ${num(r.custo_por_ha,2)}</td>
-          <td>R$ ${num(r.preco_cfg_por_ton,2)}</td>
-          <td>R$ ${num(r.receita_estimada,2)}</td>
+          <td>${h(r.talhao_nome || "—")}</td>
+          <td>${num(area,2)}</td>
+          <td>${num(chuva,2)}</td>
+          <td>${num(ton,3)}</td>
+          <td>${fmtBRL(custo)}</td>
+          <td>${fmtBRL(custoHa)}</td>
+          <td>${fmtBRL(precoTon)}</td>
+          <td>${fmtBRL(receita)}</td>
         </tr>
       `;
     }).join("");
@@ -90,12 +103,16 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
           <div style="font-weight:900; font-size:20px;">${num(totalHa,2)}</div>
         </div>
         <div class="col">
+          <div style="color:var(--muted); font-size:12px;">Chuva acumulada (mm)</div>
+          <div style="font-weight:900; font-size:20px;">${num(totalChuva,2)}</div>
+        </div>
+        <div class="col">
           <div style="color:var(--muted); font-size:12px;">Custo total</div>
-          <div style="font-weight:900; font-size:20px;">R$ ${num(totalCusto,2)}</div>
+          <div style="font-weight:900; font-size:20px;">${fmtBRL(totalCusto)}</div>
         </div>
         <div class="col">
           <div style="color:var(--muted); font-size:12px;">Custo/ha</div>
-          <div style="font-weight:900; font-size:20px;">R$ ${num(custoPorHa,2)}</div>
+          <div style="font-weight:900; font-size:20px;">${fmtBRL(custoPorHa)}</div>
         </div>
         <div class="col">
           <div style="color:var(--muted); font-size:12px;">Toneladas</div>
@@ -103,11 +120,11 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
         </div>
         <div class="col">
           <div style="color:var(--muted); font-size:12px;">Receita estimada</div>
-          <div style="font-weight:900; font-size:20px;">R$ ${num(totalReceitaEst,2)}</div>
+          <div style="font-weight:900; font-size:20px;">${fmtBRL(totalReceitaEst)}</div>
         </div>
         <div class="col">
           <div style="color:var(--muted); font-size:12px;">Receita/ha</div>
-          <div style="font-weight:900; font-size:20px;">R$ ${num(receitaPorHa,2)}</div>
+          <div style="font-weight:900; font-size:20px;">${fmtBRL(receitaPorHa)}</div>
         </div>
       </div>
     `;
@@ -116,14 +133,4 @@ export async function pageRelatorios({ pageHeader, pageBody, state, sb, toast, l
   pageHeader.querySelector("#btnReload").addEventListener("click", loadReport);
 
   await loadReport();
-}
-
-function num(v, dec=2){
-  const n = Number(v || 0);
-  return n.toFixed(dec);
-}
-function escapeHtml(s=""){
-  return String(s)
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
