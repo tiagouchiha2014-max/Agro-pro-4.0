@@ -1,7 +1,7 @@
-// js/app.js
-import { sb, getSession, signOut } from "./supabase.js";
+// js/app.js (LOCAL STORAGE)
 import { state, loadState, saveState } from "./state.js";
 import { toast, loading, setActiveMenuRoute } from "./ui.js";
+import * as db from "./db.js";
 
 import { pageLogin } from "./pages/login.js";
 import { pagePropriedades } from "./pages/propriedades.js";
@@ -23,14 +23,15 @@ const overlay = document.getElementById("overlay");
 const btnMenu = document.getElementById("btnMenu");
 
 loadState();
+db.ensureSeed();
 
 const routes = {
-  "/login":        { title: "Login",         crumb: "Acesso",      render: pageLogin },
-  "/propriedades": { title: "Propriedades",  crumb: "Cadastro",    render: pagePropriedades },
-  "/estoque":      { title: "Estoque",       crumb: "Operações",   render: pageEstoque },
-  "/colheita":     { title: "Colheita",      crumb: "Operações",   render: pageColheita },
+  "/login":        { title: "Login",         crumb: "Acesso",        render: pageLogin },
+  "/propriedades": { title: "Propriedades",  crumb: "Cadastro",      render: pagePropriedades },
+  "/estoque":      { title: "Estoque",       crumb: "Operações",     render: pageEstoque },
+  "/colheita":     { title: "Colheita",      crumb: "Operações",     render: pageColheita },
   "/clima":        { title: "Clima",         crumb: "Monitoramento", render: pageClima },
-  "/relatorios":   { title: "Relatórios",    crumb: "Gestão",      render: pageRelatorios },
+  "/relatorios":   { title: "Relatórios",    crumb: "Gestão",        render: pageRelatorios },
 };
 
 function setTitle(route){
@@ -58,13 +59,13 @@ overlay?.addEventListener("click", closeMenu);
 window.addEventListener("keydown", (e) => { if(e.key === "Escape") closeMenu(); });
 
 document.getElementById("btnLogout")?.addEventListener("click", async () => {
-  await signOut();
-  toast("Saiu da conta.");
+  // modo local: logout só volta para login
+  toast("Sessão local encerrada.");
   location.hash = "#/login";
 });
 
 async function loadSafras() {
-  const { data, error } = await sb.from("safras").select("id,nome,ativa").order("ativa", { ascending:false }).order("nome");
+  const { data, error } = await db.listSafras();
   if (error) { toast("Erro safras: " + error.message); return; }
 
   selSafra.innerHTML = data.map(s => `<option value="${s.id}">${s.nome}${s.ativa ? " (ativa)" : ""}</option>`).join("");
@@ -78,7 +79,7 @@ async function loadSafras() {
 }
 
 async function loadFazendas() {
-  const { data, error } = await sb.from("fazendas").select("id,nome").eq("ativa", true).order("nome");
+  const { data, error } = await db.listFazendas({ somenteAtivas: true });
   if (error) { toast("Erro fazendas: " + error.message); return; }
 
   selFazenda.innerHTML = data.map(f => `<option value="${f.id}">${f.nome}</option>`).join("");
@@ -102,9 +103,9 @@ selFazenda?.addEventListener("change", () => {
   renderRoute();
 });
 
+// modo local: sempre “authed”
 async function ensureAuth() {
-  const session = await getSession();
-  return !!session;
+  return true;
 }
 
 function currentPath(){
@@ -117,8 +118,6 @@ async function renderRoute() {
 
   setActiveMenuRoute(path);
   setTitle(route);
-
-  // fecha menu ao navegar no mobile
   closeMenu();
 
   pageHeader.innerHTML = "";
@@ -130,11 +129,10 @@ async function renderRoute() {
     return;
   }
 
-  // Mostra/oculta filtros globais no login
   const gf = document.getElementById("globalFilters");
   if(gf) gf.style.display = (path === "/login") ? "none" : "flex";
 
-  if (authed && path !== "/login") {
+  if (path !== "/login") {
     loading.show("Carregando filtros...");
     await loadSafras();
     await loadFazendas();
@@ -145,14 +143,13 @@ async function renderRoute() {
     pageHeader,
     pageBody,
     state,
-    sb,
+    db,
     toast,
     loading
   });
 }
 
 window.addEventListener("hashchange", renderRoute);
-sb.auth.onAuthStateChange(() => renderRoute());
 
 if (!location.hash) location.hash = "#/relatorios";
 renderRoute();
